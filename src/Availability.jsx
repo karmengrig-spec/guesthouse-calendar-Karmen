@@ -1,3 +1,4 @@
+
 import React, { useMemo, useState, useEffect } from "react";
 import {
   addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
@@ -202,8 +203,8 @@ export default function Availability(){
   }
 
   return (
-    <div className="w-full max-w-md mx-auto p-3 pb-28">
-      <div className="flex items-center justify-between mb-3">
+    <div className="w-full max-w-md mx-auto p-3 pb-28 safe-bottom">
+      <div className="flex items-center justify-between mb-3 header-sticky">
         <button type="button" aria-label="Previous month" className="px-3 py-2 rounded-xl border border-transparent" onClick={()=> setMonth(m=> subMonths(m,1))}>‹</button>
         <div className="text-sm font-medium">{format(month, "LLLL yyyy")}</div>
         <div className="flex items-center gap-2">
