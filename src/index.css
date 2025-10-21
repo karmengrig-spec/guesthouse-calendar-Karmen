@@ -3,3 +3,18 @@
 @tailwind utilities;
 html, body, #root { height: 100%; background:#fafafa; }
 button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+/* iOS PWA safe areas */
+:root{
+  --safe-top: env(safe-area-inset-top);
+  --safe-bottom: env(safe-area-inset-bottom);
+}
+.safe-top { padding-top: calc(12px + var(--safe-top)); }
+.safe-bottom { padding-bottom: calc(24px + var(--safe-bottom)); }
+/* Sticky header below the notch */
+.header-sticky {
+  position: sticky;
+  top: env(safe-area-inset-top);
+  z-index: 50;
+  background: #fff;
+  padding-top: 8px;
+}
