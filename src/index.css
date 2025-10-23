@@ -10,7 +10,7 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 }
 .safe-top { padding-top: calc(12px + var(--safe-top)); }
 .safe-bottom { padding-bottom: calc(24px + var(--safe-bottom)); }
-/* Sticky header sits below status bar */
+/* Sticky header below the notch */
 .header-sticky {
   position: sticky;
   top: env(safe-area-inset-top);

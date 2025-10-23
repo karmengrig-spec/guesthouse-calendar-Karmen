@@ -152,7 +152,6 @@ export default function Availability(){
     const b = bookings.find(bk => bk.roomId===roomId && isBefore(new Date(bk.start), addDays(day,1)) && isAfter(new Date(bk.end), day));
     if(!b) return; setModal({ open:true, mode:"edit", roomId, bookingId:b.id, start: formatISODate(new Date(b.start)), end: formatISODate(new Date(b.end)), guest: b.guest||"", note: b.note||"" });
   }
-
   function overlapsRange(roomId, s, e, ignoreId=null){
     return bookings.some(b => b.roomId===roomId && b.id!==ignoreId && (s < new Date(b.end) && e > new Date(b.start)));
   }
@@ -201,21 +200,25 @@ export default function Availability(){
 
   return (
     <div className="w-full max-w-md mx-auto p-3 pb-28 safe-top safe-bottom">
-      <div className="flex items-center justify_between mb-3 header-sticky">
+      {/* Sticky bar: arrows + month title only */}
+      <div className="flex items-center justify-between mb-1 header-sticky">
         <button type="button" aria-label="Previous month" className="px-3 py-2 rounded-xl border border-transparent" onClick={()=> setMonth(m=> subMonths(m,1))}>‹</button>
         <div className="text-sm font-medium">{format(month, "LLLL yyyy")}</div>
-        <div className="flex items-center gap-2">
-          <button type="button" className="px-3 py-2 rounded-xl border" onClick={exportVisibleMonthCSV}>Export Month</button>
-          <button type="button" className="px-3 py-2 rounded-xl border" onClick={exportAllBookingsCSV}>Export CSV</button>
-          <button type="button" aria-label="Next month" className="px-3 py-2 rounded-xl border border-transparent" onClick={()=> setMonth(m=> addMonths(m,1))}>›</button>
-        </div>
+        <button type="button" aria-label="Next month" className="px-3 py-2 rounded-xl border border-transparent" onClick={()=> setMonth(m=> addMonths(m,1))}>›</button>
+      </div>
+
+      {/* Export Month button (smaller, centered, scrolls with content) */}
+      <div className="flex justify-center mb-2">
+        <button type="button" className="mt-1 px-3 py-1 text-xs rounded-lg border bg-white shadow-sm" onClick={exportVisibleMonthCSV}>
+          Export Month
+        </button>
       </div>
 
       {syncError && (<div className="mb-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1">{syncError}</div>)}
 
       <div className="flex items-center gap-3 text-xs text-slate-500 mb-2">
         <div className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500"></span> Available</div>
-        <div className="flex items_center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-500"></span> Booked</div>
+        <div className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-500"></span> Booked</div>
       </div>
       <div className="bg-white rounded-2xl shadow border p-3">
         <div className="grid grid-cols-2 gap-x-6">
@@ -225,7 +228,7 @@ export default function Availability(){
         </div>
       </div>
 
-      {modal.open and (
+      {modal.open && (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/30" onClick={()=> setModal(m=> ({...m, open:false}))} />
           <div className="absolute inset-x-4 bottom-6 max-w-md mx-auto bg-white rounded-2xl shadow-lg border p-4">
