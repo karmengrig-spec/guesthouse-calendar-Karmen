@@ -1,1 +1,1 @@
-@tailwind base;@tailwind components;@tailwind utilities;
+@tailwind base;@tailwind components;@tailwind utilities;.header-sticky{position:sticky;top:env(safe-area-inset-top);z-index:50;background:#fff;padding-top:8px;}
