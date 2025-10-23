@@ -228,11 +228,11 @@ export default function Availability({ isAdmin }){
             </div>
             <div className="mt-3 flex items-center justify-between">
               {modal.mode==="edit" ? (
-                <button type="button" onClick={()=>{/* wired in earlier build */}} className="px-3 py-2 rounded-xl border text-red-600 border-red-300">Cancel booking</button>
+                <button type="button" onClick={cancelBooking} className="px-3 py-2 rounded-xl border text-red-600 border-red-300">Cancel booking</button>
               ) : <span />}
               <div className="flex gap-2">
                 <button type="button" onClick={()=> setModal(m=> ({...m, open:false}))} className="px-3 py-2 rounded-xl border">Close</button>
-                <button type="button" onClick={()=>{/* wired in earlier build */}} className="px-3 py-2 rounded-xl border bg-emerald-500 text-white">Save</button>
+                <button type="button" onClick={saveModal} className="px-3 py-2 rounded-xl border bg-emerald-500 text-white">Save</button>
               </div>
             </div>
           </div>
