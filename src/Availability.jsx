@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import {
   addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, isSameMonth, format, startOfDay, isBefore, isAfter, parseISO
@@ -29,8 +29,8 @@ function formatISODate(d){
 
 function RoomMonth({ room, month, bookings, onTapFree, onTapBooked }){
   const monthStart = startOfMonth(month);
-  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
   const monthEnd = endOfMonth(month);
+  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
   const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const days = React.useMemo(()=>{ const arr=[]; let d=gridStart; while(d<=gridEnd){ arr.push(d); d=addDays(d,1); } return arr; }, [month]);
 
@@ -81,14 +81,20 @@ export default function Availability(){
   const [syncError, setSyncError] = useState(null);
   const CACHE_KEY = "ghc_cloud_cache_v1";
 
+  // Load cache first
   useEffect(() => {
-    try { const raw = localStorage.getItem(CACHE_KEY); if (raw) setBookings(JSON.parse(raw)); } catch {}
+    try {
+      const raw = localStorage.getItem(CACHE_KEY);
+      if (raw) setBookings(JSON.parse(raw));
+    } catch {}
   }, []);
 
+  // Live Firestore (merge without dropping local)
   useEffect(()=>{
     const coll = collection(db, "bookings");
     const unsub = onSnapshot(coll, (snap)=>{
-      const cloud = []; snap.forEach(docSnap => cloud.push({ id: docSnap.id, ...docSnap.data() }));
+      const cloud = [];
+      snap.forEach(docSnap => cloud.push({ id: docSnap.id, ...docSnap.data() }));
       setBookings(prev => {
         const byId = new Map(prev.map(b => [b.id, b]));
         for(const c of cloud) byId.set(c.id, c);
@@ -101,6 +107,7 @@ export default function Availability(){
     return () => unsub();
   }, []);
 
+  // CSV helpers
   const roomNameById = useMemo(() => Object.fromEntries(rooms.map(r => [r.id, r.name])), [rooms]);
   function toCSV(rows) {
     const headers = ["roomId","roomName","guest","note","start","end","nights"];
@@ -130,16 +137,27 @@ export default function Availability(){
     a.download = `bookings_${format(month,"yyyy_MM")}_${format(new Date(),"HH-mm")}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   }
 
+  // Modal state
   const [modal, setModal] = useState({ open:false, mode:"create", roomId:null, bookingId:null, start:"", end:"", guest:"", note:"" });
+  const noteRef = useRef(null);
+  useEffect(()=>{
+    if (noteRef.current) {
+      noteRef.current.style.height = "auto";
+      noteRef.current.style.height = noteRef.current.scrollHeight + "px";
+    }
+  }, [modal.open]);
+
   function openCreate(roomId, day){ setModal({ open:true, mode:"create", roomId, bookingId:null, start: formatISODate(day), end: formatISODate(addDays(day,1)), guest:"", note:"" }); }
   function openEdit(roomId, day){
     const b = bookings.find(bk => bk.roomId===roomId && isBefore(new Date(bk.start), addDays(day,1)) && isAfter(new Date(bk.end), day));
     if(!b) return; setModal({ open:true, mode:"edit", roomId, bookingId:b.id, start: formatISODate(new Date(b.start)), end: formatISODate(new Date(b.end)), guest: b.guest||"", note: b.note||"" });
   }
+
   function overlapsRange(roomId, s, e, ignoreId=null){
     return bookings.some(b => b.roomId===roomId && b.id!==ignoreId && (s < new Date(b.end) && e > new Date(b.start)));
   }
 
+  // Save
   async function saveModal(){
     const s = startOfDay(parseISO(modal.start));
     const e = startOfDay(parseISO(modal.end));
@@ -169,6 +187,7 @@ export default function Availability(){
     }
   }
 
+  // Cancel
   async function cancelBooking(){
     if(!modal.bookingId) return;
     const id = modal.bookingId;
@@ -182,7 +201,7 @@ export default function Availability(){
 
   return (
     <div className="w-full max-w-md mx-auto p-3 pb-28 safe-top safe-bottom">
-      <div className="flex items-center justify-between mb-3 header-sticky">
+      <div className="flex items-center justify_between mb-3 header-sticky">
         <button type="button" aria-label="Previous month" className="px-3 py-2 rounded-xl border border-transparent" onClick={()=> setMonth(m=> subMonths(m,1))}>‹</button>
         <div className="text-sm font-medium">{format(month, "LLLL yyyy")}</div>
         <div className="flex items-center gap-2">
@@ -196,7 +215,7 @@ export default function Availability(){
 
       <div className="flex items-center gap-3 text-xs text-slate-500 mb-2">
         <div className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-emerald-500"></span> Available</div>
-        <div className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-500"></span> Booked</div>
+        <div className="flex items_center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-500"></span> Booked</div>
       </div>
       <div className="bg-white rounded-2xl shadow border p-3">
         <div className="grid grid-cols-2 gap-x-6">
@@ -206,7 +225,7 @@ export default function Availability(){
         </div>
       </div>
 
-      {modal.open && (
+      {modal.open and (
         <div className="fixed inset-0 z-50">
           <div className="absolute inset-0 bg-black/30" onClick={()=> setModal(m=> ({...m, open:false}))} />
           <div className="absolute inset-x-4 bottom-6 max-w-md mx-auto bg-white rounded-2xl shadow-lg border p-4">
@@ -226,7 +245,18 @@ export default function Availability(){
               </label>
               <label className="col-span-2 flex flex-col gap-1">
                 <span className="text-xs text-slate-500">Note (optional)</span>
-                <input type="text" value={modal.note} onChange={e=> setModal(m=> ({...m, note:e.target.value}))} placeholder="e.g. Paid cash" className="border rounded-lg px-2 py-1" />
+                <textarea
+                  ref={noteRef}
+                  value={modal.note}
+                  onChange={(e)=>{
+                    setModal(m=> ({...m, note:e.target.value}));
+                    e.target.style.height = "auto";
+                    e.target.style.height = e.target.scrollHeight + "px";
+                  }}
+                  placeholder="e.g. Paid cash, 2 adults, arriving 9pm, vegetarian breakfast"
+                  className="border rounded-lg px-2 py-2 w-full resize-none leading-relaxed overflow-hidden"
+                  rows={3}
+                />
               </label>
             </div>
             <div className="mt-3 flex items-center justify-between">
