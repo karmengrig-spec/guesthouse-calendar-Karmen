@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import {
   addMonths, subMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek,
   addDays, isSameMonth, format, startOfDay, isBefore, isAfter, parseISO
@@ -29,8 +29,8 @@ function formatISODate(d){
 
 function RoomMonth({ room, month, bookings, onTapFree, onTapBooked }){
   const monthStart = startOfMonth(month);
-  const monthEnd = endOfMonth(month);
   const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const monthEnd = endOfMonth(month);
   const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
   const days = React.useMemo(()=>{ const arr=[]; let d=gridStart; while(d<=gridEnd){ arr.push(d); d=addDays(d,1); } return arr; }, [month]);
 
@@ -81,20 +81,14 @@ export default function Availability(){
   const [syncError, setSyncError] = useState(null);
   const CACHE_KEY = "ghc_cloud_cache_v1";
 
-  // Load cache first
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(CACHE_KEY);
-      if (raw) setBookings(JSON.parse(raw));
-    } catch {}
+    try { const raw = localStorage.getItem(CACHE_KEY); if (raw) setBookings(JSON.parse(raw)); } catch {}
   }, []);
 
-  // Live Firestore (merge without dropping local)
   useEffect(()=>{
     const coll = collection(db, "bookings");
     const unsub = onSnapshot(coll, (snap)=>{
-      const cloud = [];
-      snap.forEach(docSnap => cloud.push({ id: docSnap.id, ...docSnap.data() }));
+      const cloud = []; snap.forEach(docSnap => cloud.push({ id: docSnap.id, ...docSnap.data() }));
       setBookings(prev => {
         const byId = new Map(prev.map(b => [b.id, b]));
         for(const c of cloud) byId.set(c.id, c);
@@ -107,7 +101,6 @@ export default function Availability(){
     return () => unsub();
   }, []);
 
-  // CSV helpers
   const roomNameById = useMemo(() => Object.fromEntries(rooms.map(r => [r.id, r.name])), [rooms]);
   function toCSV(rows) {
     const headers = ["roomId","roomName","guest","note","start","end","nights"];
@@ -137,16 +130,7 @@ export default function Availability(){
     a.download = `bookings_${format(month,"yyyy_MM")}_${format(new Date(),"HH-mm")}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
   }
 
-  // Modal state
   const [modal, setModal] = useState({ open:false, mode:"create", roomId:null, bookingId:null, start:"", end:"", guest:"", note:"" });
-  const noteRef = useRef(null);
-  useEffect(()=>{
-    if (noteRef.current) {
-      noteRef.current.style.height = "auto";
-      noteRef.current.style.height = noteRef.current.scrollHeight + "px";
-    }
-  }, [modal.open]);
-
   function openCreate(roomId, day){ setModal({ open:true, mode:"create", roomId, bookingId:null, start: formatISODate(day), end: formatISODate(addDays(day,1)), guest:"", note:"" }); }
   function openEdit(roomId, day){
     const b = bookings.find(bk => bk.roomId===roomId && isBefore(new Date(bk.start), addDays(day,1)) && isAfter(new Date(bk.end), day));
@@ -156,7 +140,6 @@ export default function Availability(){
     return bookings.some(b => b.roomId===roomId && b.id!==ignoreId && (s < new Date(b.end) && e > new Date(b.start)));
   }
 
-  // Save
   async function saveModal(){
     const s = startOfDay(parseISO(modal.start));
     const e = startOfDay(parseISO(modal.end));
@@ -186,7 +169,6 @@ export default function Availability(){
     }
   }
 
-  // Cancel
   async function cancelBooking(){
     if(!modal.bookingId) return;
     const id = modal.bookingId;
@@ -200,18 +182,14 @@ export default function Availability(){
 
   return (
     <div className="w-full max-w-md mx-auto p-3 pb-28 safe-top safe-bottom">
-      {/* Sticky bar: arrows + month title only */}
-      <div className="flex items-center justify-between mb-1 header-sticky">
+      <div className="flex items-center justify-between mb-3 header-sticky">
         <button type="button" aria-label="Previous month" className="px-3 py-2 rounded-xl border border-transparent" onClick={()=> setMonth(m=> subMonths(m,1))}>‹</button>
         <div className="text-sm font-medium">{format(month, "LLLL yyyy")}</div>
-        <button type="button" aria-label="Next month" className="px-3 py-2 rounded-xl border border-transparent" onClick={()=> setMonth(m=> addMonths(m,1))}>›</button>
-      </div>
-
-      {/* Export Month button (smaller, centered, scrolls with content) */}
-      <div className="flex justify-center mb-2">
-        <button type="button" className="mt-1 px-3 py-1 text-xs rounded-lg border bg-white shadow-sm" onClick={exportVisibleMonthCSV}>
-          Export Month
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" className="px-3 py-2 rounded-xl border" onClick={exportVisibleMonthCSV}>Export Month</button>
+          <button type="button" className="px-3 py-2 rounded-xl border" onClick={exportAllBookingsCSV}>Export CSV</button>
+          <button type="button" aria-label="Next month" className="px-3 py-2 rounded-xl border border-transparent" onClick={()=> setMonth(m=> addMonths(m,1))}>›</button>
+        </div>
       </div>
 
       {syncError && (<div className="mb-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1">{syncError}</div>)}
@@ -248,18 +226,7 @@ export default function Availability(){
               </label>
               <label className="col-span-2 flex flex-col gap-1">
                 <span className="text-xs text-slate-500">Note (optional)</span>
-                <textarea
-                  ref={noteRef}
-                  value={modal.note}
-                  onChange={(e)=>{
-                    setModal(m=> ({...m, note:e.target.value}));
-                    e.target.style.height = "auto";
-                    e.target.style.height = e.target.scrollHeight + "px";
-                  }}
-                  placeholder="e.g. Paid cash, 2 adults, arriving 9pm, vegetarian breakfast"
-                  className="border rounded-lg px-2 py-2 w-full resize-none leading-relaxed overflow-hidden"
-                  rows={3}
-                />
+                <input type="text" value={modal.note} onChange={e=> setModal(m=> ({...m, note:e.target.value}))} placeholder="e.g. Paid cash" className="border rounded-lg px-2 py-1" />
               </label>
             </div>
             <div className="mt-3 flex items-center justify-between">
