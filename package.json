@@ -1,6 +1,6 @@
 {
   "name": "guesthouse-calendar-cloud",
-  "version": "3.2.5",
+  "version": "3.3.0",
   "private": true,
   "dependencies": {
     "react": "^18.2.0",

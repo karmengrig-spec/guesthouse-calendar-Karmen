@@ -5,6 +5,7 @@ import {
 } from "date-fns";
 import { db } from "./firebase";
 import { collection, addDoc, onSnapshot, updateDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
+import { backupJSON, loadBackupJSON } from "./drive";
 
 const roomsSeed = [
   { id: "r1", name: "Double Room" },
@@ -77,12 +78,25 @@ function RoomMonth({ room, month, bookings, onTapFree, onTapBooked, isAdmin }){
   );
 }
 
+function useDebounce(fn, delay=1200){
+  const t = React.useRef(null);
+  const debounced = (...args) => {
+    clearTimeout(t.current);
+    t.current = setTimeout(()=>fn(...args), delay);
+  };
+  return debounced;
+}
+
 export default function Availability({ isAdmin }){
   const [rooms] = useState(roomsSeed);
   const [bookings, setBookings] = useState([]);
   const [month, setMonth] = useState(startOfMonth(new Date()));
   const [syncError, setSyncError] = useState(null);
   const CACHE_KEY = "ghc_cloud_cache_v1";
+  const BACKUP_FILE = "greenstone_bookings_backup.json";
+  const debouncedBackup = useDebounce(async (data)=>{
+    try{ await backupJSON(BACKUP_FILE, data); }catch(e){}
+  }, 1500);
 
   useEffect(() => { try { const raw = localStorage.getItem(CACHE_KEY); if (raw) setBookings(JSON.parse(raw)); } catch {} }, []);
   useEffect(()=>{
@@ -102,6 +116,7 @@ export default function Availability({ isAdmin }){
   }, []);
 
   const roomNameById = useMemo(() => Object.fromEntries(rooms.map(r => [r.id, r.name])), [rooms]);
+
   function toCSV(rows) {
     const headers = ["roomId","roomName","guest","note","start","end","nights"];
     const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
@@ -147,19 +162,16 @@ export default function Availability({ isAdmin }){
     if(modal.mode==="create"){
       const tempId = "local_" + Date.now();
       const newBk = { id: tempId, roomId: modal.roomId, guest: modal.guest || "Guest", note: modal.note || "", start: s.toISOString(), end: e.toISOString() };
-      setBookings(prev => { const arr=[...prev, newBk]; try{ localStorage.setItem(CACHE_KEY, JSON.stringify(arr)); }catch{} return arr; });
+      setBookings(prev => { const arr=[...prev, newBk]; try{ localStorage.setItem(CACHE_KEY, JSON.stringify(arr)); }catch{} try{ debouncedBackup(arr); }catch{} return arr; });
       try {
         const ref = await addDoc(collection(db, "bookings"), { roomId:newBk.roomId, guest:newBk.guest, note:newBk.note, start:newBk.start, end:newBk.end, createdAt: serverTimestamp() });
-        setBookings(prev => { const arr=prev.map(b => b.id===tempId ? { ...newBk, id: ref.id } : b); try{ localStorage.setItem(CACHE_KEY, JSON.stringify(arr)); }catch{} return arr; });
-        setSyncError(null);
-      } catch (err) { setSyncError(err?.message || "Save failed. Stored locally only."); }
+        setBookings(prev => { const arr=prev.map(b => b.id===tempId ? { ...newBk, id: ref.id } : b); try{ localStorage.setItem(CACHE_KEY, JSON.stringify(arr)); }catch{} try{ debouncedBackup(arr); }catch{} return arr; });
+      } catch (err) { /* keep local */ }
     } else {
       const edited = { id: modal.bookingId, roomId: modal.roomId, guest: modal.guest || "Guest", note: modal.note || "", start: s.toISOString(), end: e.toISOString() };
-      setBookings(prev => { const arr=prev.map(b => b.id===edited.id ? edited : b); try{ localStorage.setItem(CACHE_KEY, JSON.stringify(arr)); }catch{} return arr; });
-      try {
-        if (!String(edited.id).startsWith("local_")){ await updateDoc(doc(db, "bookings", edited.id), { guest: edited.guest, note: edited.note, start: edited.start, end: edited.end }); }
-        setSyncError(null);
-      } catch (err) { setSyncError(err?.message || "Update failed. Kept local changes."); }
+      setBookings(prev => { const arr=prev.map(b => b.id===edited.id ? edited : b); try{ localStorage.setItem(CACHE_KEY, JSON.stringify(arr)); }catch{} try{ debouncedBackup(arr); }catch{} return arr; });
+      try { if (!String(edited.id).startsWith("local_")){ await updateDoc(doc(db, "bookings", edited.id), { guest: edited.guest, note: edited.note, start: edited.start, end: edited.end }); } }
+      catch (err) {}
     }
   }
 
@@ -168,9 +180,9 @@ export default function Availability({ isAdmin }){
     if(!modal.bookingId) return;
     const id = modal.bookingId;
     setModal(m=> ({...m, open:false}));
-    setBookings(prev => { const arr=prev.filter(b => b.id !== id); try{ localStorage.setItem(CACHE_KEY, JSON.stringify(arr)); }catch{} return arr; });
-    try { if (!String(id).startsWith("local_")) { await deleteDoc(doc(db, "bookings", id)); } setSyncError(null); }
-    catch (err) { setSyncError(err?.message || "Delete failed. Removed locally only."); }
+    setBookings(prev => { const arr=prev.filter(b => b.id !== id); try{ localStorage.setItem(CACHE_KEY, JSON.stringify(arr)); }catch{} try{ debouncedBackup(arr); }catch{} return arr; });
+    try { if (!String(id).startsWith("local_")) { await deleteDoc(doc(db, "bookings", id)); } }
+    catch (err) {}
   }
 
   return (
@@ -183,6 +195,22 @@ export default function Availability({ isAdmin }){
       <div className="flex justify-center mb-2">
         <button type="button" className="mt-1 px-3 py-1 text-xs rounded-lg border bg-white shadow-sm" onClick={exportVisibleMonthCSV}>
           Export Month
+        </button>
+        <button type="button" className="mt-1 ml-2 px-3 py-1 text-xs rounded-lg border bg-white shadow-sm"
+          onClick={() => backupJSON("greenstone_bookings_backup.json", bookings)}>
+          Backup Now
+        </button>
+        <button type="button" className="mt-1 ml-2 px-3 py-1 text-xs rounded-lg border bg-white shadow-sm"
+          onClick={async ()=>{
+            try{
+              const data = await loadBackupJSON("greenstone_bookings_backup.json");
+              if (data && Array.isArray(data)) {
+                setBookings(data);
+                try{ localStorage.setItem(CACHE_KEY, JSON.stringify(data)); }catch{}
+              } else { alert("No backup found."); }
+            } catch { alert("Restore failed."); }
+          }}>
+          Restore
         </button>
       </div>
       <div className="flex items-center gap-3 text-xs text-slate-500 mb-2">
@@ -236,15 +264,15 @@ export default function Availability({ isAdmin }){
                 <button type="button" onClick={async ()=>{
                   const id = modal.bookingId;
                   setModal(m=> ({...m, open:false}));
-                  setBookings(prev => { const arr=prev.filter(b => b.id !== id); try{ localStorage.setItem(CACHE_KEY, JSON.stringify(arr)); }catch{} return arr; });
-                  try { if (!String(id).startsWith("local_")) { await deleteDoc(doc(db, "bookings", id)); } setSyncError(null); }
-                  catch (err) { setSyncError(err?.message || "Delete failed. Removed locally only."); }
+                  setBookings(prev => { const arr=prev.filter(b => b.id !== id); try{ localStorage.setItem(CACHE_KEY, JSON.stringify(arr)); }catch{} try{ debouncedBackup(arr); }catch{} return arr; });
+                  try { if (!String(id).startsWith("local_")) { await deleteDoc(doc(db, "bookings", id)); } }
+                  catch (err) {}
                 }} className="px-3 py-2 rounded-xl border text-red-600 border-red-300">Cancel booking</button>
               ) : <span />}
               <div className="flex gap-2">
                 <button type="button" onClick={()=> setModal(m=> ({...m, open:false}))} className="px-3 py-2 rounded-xl border">Close</button>
                 {(!modal.readOnly) && (
-                  <button type="button" onClick={saveModal} className="px-3 py-2 rounded-xl border bg-emerald-500 text-white">Save</button>
+                  <button type="button" onClick={saveModal} className="px-3 py-2 rounded-xl border bg-emerald-600 text-white">Save</button>
                 )}
               </div>
             </div>

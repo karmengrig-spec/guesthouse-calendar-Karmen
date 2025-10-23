@@ -1,6 +1,6 @@
 {
-  "name": "Guesthouse Bookings",
-  "short_name": "Guesthouse",
+  "name": "Green Stone \u2014 Bookings",
+  "short_name": "Bookings",
   "start_url": ".",
   "scope": "/",
   "display": "standalone",
@@ -9,17 +9,19 @@
     "fullscreen"
   ],
   "background_color": "#ffffff",
-  "theme_color": "#10b981",
+  "theme_color": "#159D57",
   "icons": [
     {
       "src": "/icons/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icons/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/icons/maskable-192.png",
@@ -32,6 +34,11 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "/icons/apple-touch-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
     }
   ]
 }
